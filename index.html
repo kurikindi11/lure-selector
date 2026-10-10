@@ -74,11 +74,13 @@ ol.rot li:last-child{border:0}
   <h1>新潟シーバス LURE SELECTOR</h1>
   <p class="lead">フィールドと地形、状況、目的を選ぶと、今投げる1本・その理由・投げる方向と流し方・反応がない時に何を変えるかまで出ます。選ばない項目は無視されます。</p>
 
+  <div id="tidebox"></div>
   <div id="form"></div>
   <button class="reset" id="reset">条件をクリア</button>
 
   <h2>🎯 今投げる1本</h2>
   <div id="results"></div>
+  <div id="logbox"></div>
 
   <h2>🎣 HOW TO FISH</h2>
   <div id="howto"></div>
@@ -92,6 +94,7 @@ ol.rot li:last-child{border:0}
   <p class="note">内部の適性点は data.js の LURES / STRUCT / COLOR_FAM 配列で編集できます（-3〜+3）。ルアーやポイントを足す時も data.js だけを直します。初期値は仕様と一般的な使い方からの目安で、釣果で裏付けたものではありません。</p>
 </main>
 
+<script src="tide.js"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
 <script>

@@ -1,4 +1,4 @@
-let field = null, struct = null, cast = 0;
+let field = null, struct = null, cast = 0, tide = null;
 const sel = {};
 const formEl = document.getElementById('form');
 
@@ -29,6 +29,7 @@ function build(){
   p2.innerHTML = '<p class="ph">② CONDITIONS</p>';
   DIMS.slice(0, 5).forEach(d => p2.appendChild(chipRow(d.label, d.opts,
     () => sel[d.k] === undefined ? null : sel[d.k], v => { if (v === null) delete sel[d.k]; else sel[d.k] = v; })));
+  p2.appendChild(chipRow('潮の状況', TIDES, () => tide, v => tide = v));
   formEl.appendChild(p2);
 
   const p3 = document.createElement('div'); p3.className = 'panel';
@@ -47,7 +48,7 @@ function build(){
   formEl.appendChild(p4);
 }
 document.getElementById('reset').onclick = () => {
-  field = null; struct = null; cast = 0;
+  field = null; struct = null; cast = 0; tide = null;
   Object.keys(sel).forEach(k => delete sel[k]);
   build(); render();
 };
@@ -65,6 +66,7 @@ function score(L){
   DIMS.forEach(d => { if (sel[d.k] === undefined) return;
     const v = L[d.k][sel[d.k]]; total += v; n++; parts.push({label: d.opts[sel[d.k]], v}); });
   if (field !== null){ total += L.fl[field]; n++; }
+  if (tide !== null && sel.f === undefined){ total += L.f[tide === 2 ? 0 : (tide === 0 ? 1 : 2)]; n++; }
   const st = curStruct();
   if (st){ st.need.forEach(([k, i, w]) => { total += L[k][i] * w; n += w; }); }
   total += castScore(L);
@@ -79,6 +81,7 @@ function condLine(){
   if (field !== null) xs.push(FIELDS[field]);
   const st = curStruct(); if (st) xs.push(st.n);
   DIMS.forEach(d => { if (sel[d.k] !== undefined) xs.push(d.opts[sel[d.k]]); });
+  if (tide !== null) xs.push(TIDES[tide]);
   if (cast) xs.push(CAST[cast]);
   return xs.join(' × ');
 }
@@ -147,10 +150,11 @@ function howto(L){
     ['速度', sp.text + '（' + sp.why + '）。反応がなければ、速い・遅いの両方を試す'],
     ['アクション', ACT[L.ty]],
   ];
+  const tn = tide !== null ? [['潮', TIDE_NOTE[tide]]] : [];
   const blk = (title, rows) => '<div class="sub">' + title + '</div><ul class="flow">' +
     rows.map(r => '<li><span class="fk">' + r[0] + '</span><span>' + esc(r[1]) + '</span></li>').join('') + '</ul>';
   return '<div class="card"><div class="meta">' + esc(L.n) + '　' + esc(L.c) + '</div>' +
-    blk('どこへ、どう通すか【経験則】', g1) + blk('どう流すか【経験則】', g2) + blk('速度・アクション【経験則】', g3) +
+    blk('どこへ、どう通すか【経験則】', g1.concat(tn)) + blk('どう流すか【経験則】', g2) + blk('速度・アクション【経験則】', g3) +
     '<div class="meta" style="margin-top:8px">レンジはメーカーなどの仕様・表示を基準とした目安で、実釣時の実レンジを保証するものではありません。キャスト方向・コース・流し方・速度・アクションは、経験則に基づく選定の目安です。</div></div>';
 }
 function firstCard(x, needDeep){
@@ -158,7 +162,7 @@ function firstCard(x, needDeep){
   const v = [L.a[0], L.a[1] + '（' + WAVE[L.wv] + '）', L.a[2], L.a[3]];
   return '<div class="card first">' +
     '<div class="card-top"><div class="name">' + esc(L.n) + '</div><div class="stars">' + stars(x.s) + '</div></div>' +
-    '<div class="meta">' + esc(L.c) + '　' + (L.w ? esc(L.w) + '　' : '') + RANGE[L.main] + '</div>' +
+    '<div class="meta">' + esc(L.c) + '　' + (L.wt ? esc(L.wt) + '　' : '') + RANGE[L.main] + '</div>' +
     '<div class="reason"><b>選定理由</b>' +
       '<div class="step s1">' + esc(condLine()) + '</div><div class="arrow">↓</div>' +
       '<div class="step">' + esc(needLine(L)) + '</div><div class="arrow">↓</div>' +
@@ -170,11 +174,47 @@ function firstCard(x, needDeep){
     '<div><span class="k bad">弱点</span><span class="bad">' + esc(L.weak) + '</span></div></div>' +
     colorBlock(L) + '</div>';
 }
+
+// ===== 実績（CATCH_LOG）との照合。選定の点数には入れず、別枠で表示する =====
+function logMatches(lg){
+  let m = 0, tot = 0;
+  const chk = (a, b) => { if (a === null || a === undefined || b === null || b === undefined) return; tot++; if (a === b) m++; };
+  chk(field, lg.field);
+  chk(sel.t, lg.t); chk(sel.l, lg.l); chk(sel.f, lg.f); chk(sel.dp, lg.dp); chk(sel.w, lg.w);
+  chk(tide, lg.tide);
+  return {m, tot};
+}
+function logLine(lg){
+  const parts = [];
+  parts.push(lg.place || FIELDS[lg.field]);
+  if (lg.struct) parts.push(lg.struct);
+  [['t','水色'],['l','光量'],['f','流れ'],['dp','水深'],['w','風']].forEach(([k]) => {
+    const d = DIMS.find(x => x.k === k); if (lg[k] !== undefined && lg[k] !== null) parts.push(d.opts[lg[k]]);
+  });
+  if (lg.tide !== undefined && lg.tide !== null) parts.push(TIDES[lg.tide]);
+  return parts.join(' × ');
+}
+function logHtml(firstL){
+  const near = CATCH_LOG.map(lg => ({lg, r: logMatches(lg)}))
+    .filter(x => x.r.m >= 3 || (x.r.tot >= 1 && x.r.m === x.r.tot && x.r.m >= 2))
+    .sort((a, b) => b.r.m - a.r.m);
+  if (!near.length) return '';
+  const rows = near.slice(0, 3).map(x => {
+    const lg = x.lg;
+    return '<li><span class="fk">' + esc(lg.result) + '</span><span><b>' + esc(lg.lure) + '</b>（' + esc(lg.color) + '）' +
+      (lg.lure === firstL.n ? '　<span class="stars">★ 今の1本と同じ</span>' : '') +
+      '<div class="meta">' + esc(logLine(lg)) + '　' + esc(CAST[lg.cast || 0]) + (lg.range ? '　レンジ：' + esc(lg.range) : '') + '</div>' +
+      '<div class="meta">条件の一致：' + x.r.m + ' / ' + x.r.tot + '</div></span></li>';
+  }).join('');
+  return '<h2>📒 あなたの実績</h2><div class="card"><ul class="flow">' + rows + '</ul>' +
+    '<div class="meta" style="margin-top:6px">実績は選定の点数には入れていません。回数が少ないうちは、参考として見てください。</div></div>';
+}
 function render(){
   const resEl = document.getElementById('results'), howEl = document.getElementById('howto'), rotEl = document.getElementById('rotation');
-  if (field === null && !Object.keys(sel).length){
+  if (field === null && tide === null && !Object.keys(sel).length){
     resEl.innerHTML = '<div class="empty">フィールドか条件を1つ以上選んでください。</div>';
-    howEl.innerHTML = ''; rotEl.innerHTML = '<li class="empty">条件を選ぶと表示されます。</li>'; return;
+    howEl.innerHTML = ''; { const lb = document.getElementById('logbox'); if (lb) lb.innerHTML = ''; }
+    rotEl.innerHTML = '<li class="empty">条件を選ぶと表示されます。</li>'; return;
   }
   const ranked = LURES.map(L => ({L, s: score(L)})).sort((a, b) => b.s.total - a.s.total || a.L.main - b.L.main);
   // 基本はミノー系（表層〜シャロー）から入る。レンジを下げる必要がある時だけ、全体から選ぶ
@@ -183,6 +223,8 @@ function render(){
   const first = pool[0] || ranked[0];
   resEl.innerHTML = firstCard(first, needDeep);
   howEl.innerHTML = howto(first.L);
+  const logEl = document.getElementById('logbox');
+  if (logEl) logEl.innerHTML = logHtml(first.L);
 
   const used = new Set([first.L.n]);
   const take = fn => { const x = ranked.find(y => !used.has(y.L.n) && fn(y)); if (x) used.add(x.L.n); return x; };
@@ -210,3 +252,75 @@ function render(){
 }
 build();
 render();
+
+// BOX一覧（手持ちの確認用）
+(function(){
+  const el = document.getElementById('boxlist'); if (!el) return;
+  const names = ['表層','シャロー','中層','ボトム'];
+  el.innerHTML = '<div class="card">' + names.map((nm, r) => {
+    const xs = LURES.filter(L => L.main === r);
+    if (!xs.length) return '';
+    return '<div class="sub">' + nm + '（' + xs.length + '本）</div><ul class="flow">' +
+      xs.map(L => '<li><span class="fk" style="min-width:12em">' + esc(L.n) + '</span><span>' + esc(L.c) + (L.wt ? '　' + esc(L.wt) : '') + (function(){ const c = CATCH_LOG.filter(g => g.lure === L.n).length; return c ? '　★実績 ' + c + '件' : ''; })() + '</span></li>').join('') + '</ul>';
+  }).join('') + '<div class="meta" style="margin-top:8px">合計 ' + LURES.length + ' 本。ここにあるルアーだけが、判定の候補です。</div></div>';
+})();
+
+// ===== 潮汐（新潟西港の推算潮位）。tide.js が無くても本体は動く =====
+function tideInfo(now){
+  if (typeof TIDE_DATA === 'undefined') return null;
+  const pad = n => String(n).padStart(2, '0');
+  const key = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const today = TIDE_DATA.days[key(now)];
+  if (!today) return {out: true};
+  const tmr = new Date(now); tmr.setDate(tmr.getDate() + 1);
+  const next = TIDE_DATA.days[key(tmr)];
+  const hh = now.getHours(), mm = now.getMinutes();
+  const a = today.h[hh];
+  const b = hh < 23 ? today.h[hh + 1] : (next ? next.h[0] : a);
+  const level = Math.round(a + (b - a) * mm / 60);
+  const prev = hh > 0 ? today.h[hh - 1] : a;
+  const slope = (b - prev) / 2;               // cm/時（前後1時間の平均）
+  let state = 2;                               // 0上げ 1下げ 2止まり付近
+  if (slope >= 1.5) state = 0; else if (slope <= -1.5) state = 1;
+  const range = Math.max(...today.h) - Math.min(...today.h);
+  return {today, next, level, slope, state, range, hh, mm};
+}
+function tideSvg(h, hh, mm){
+  const W = 300, H = 70, mn = Math.min(...h) - 2, mx = Math.max(...h) + 2;
+  const x = i => i / 23 * W, y = v => H - (v - mn) / (mx - mn) * H;
+  const pts = h.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+  const nx = x(hh + mm / 60).toFixed(1);
+  return '<svg viewBox="0 0 ' + W + ' ' + (H + 14) + '" style="width:100%;max-width:420px;display:block;margin-top:6px" role="img" aria-label="今日の潮位グラフ">' +
+    '<polyline points="' + pts + '" fill="none" stroke="var(--good)" stroke-width="2"/>' +
+    '<line x1="' + nx + '" y1="0" x2="' + nx + '" y2="' + H + '" stroke="var(--accent)" stroke-width="2"/>' +
+    [0, 6, 12, 18, 23].map(i => '<text x="' + Math.min(x(i), W - 12).toFixed(1) + '" y="' + (H + 12) + '" font-size="10" fill="var(--sub)">' + i + '時</text>').join('') +
+    '</svg>';
+}
+function renderTide(){
+  const el = document.getElementById('tidebox'); if (!el) return;
+  const t = tideInfo(new Date());
+  if (!t){ el.innerHTML = ''; return; }
+  if (t.out){
+    el.innerHTML = '<div class="panel"><p class="ph">🌊 潮汐（' + esc(TIDE_DATA.short || TIDE_DATA.station) + '）</p><p class="meta" style="margin-bottom:12px">潮汐データの期間外です（' +
+      esc(TIDE_DATA.from) + '〜' + esc(TIDE_DATA.to) + '）。tide.js の更新が必要です。</p></div>';
+    return;
+  }
+  const fmt = arr => arr.length ? arr.map(s => { const [tm, cm] = s.split('/'); return tm + '（' + cm + 'cm）'; }).join('　') : 'なし';
+  const STATE = ['上げ潮', '下げ潮', '潮止まり付近'];
+  el.innerHTML = '<div class="panel"><p class="ph">🌊 潮汐（' + esc(TIDE_DATA.short || TIDE_DATA.station) + '・予測値）</p>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline">' +
+      '<div><span class="meta">今の潮位</span> <b style="font-size:20px">' + t.level + 'cm</b></div>' +
+      '<div><span class="meta">潮の動き</span> <b style="font-size:18px;color:var(--accent)">' + STATE[t.state] + '</b></div>' +
+      '<div class="meta">今日の潮位差 ' + t.range + 'cm</div>' +
+    '</div>' +
+    tideSvg(t.today.h, t.hh, t.mm) +
+    '<div class="kv"><div><span class="k">満潮</span><span>' + fmt(t.today.hi) + '</span></div>' +
+    '<div><span class="k">干潮</span><span>' + fmt(t.today.lo) + '</span></div>' +
+    (t.next ? '<div><span class="k">明日の満潮</span><span>' + fmt(t.next.hi) + '</span></div><div><span class="k">明日の干潮</span><span>' + fmt(t.next.lo) + '</span></div>' : '') +
+    '</div>' +
+    '<button class="reset" id="useTide" type="button" style="margin-top:8px">この潮（' + STATE[t.state].replace('付近','') + '）を条件に使う</button>' +
+    '<p class="meta" style="margin:4px 0 12px">気象庁の新潟西港・新潟東港の予測値を平均した目安で、実測ではありません。新潟は潮位差が数十cmと小さく、河口の流れは川の流量・雨・放流の影響の方が大きいことが多いです。</p></div>';
+  document.getElementById('useTide').onclick = () => { tide = t.state; build(); render(); };
+}
+renderTide();
+setInterval(renderTide, 10 * 60 * 1000);
