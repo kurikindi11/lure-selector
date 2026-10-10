@@ -1,4 +1,4 @@
-let field = null, struct = null, cast = 0, tide = null;
+let field = null, struct = null, cast = 0;
 const sel = {};
 const formEl = document.getElementById('form');
 
@@ -29,7 +29,6 @@ function build(){
   p2.innerHTML = '<p class="ph">② CONDITIONS</p>';
   DIMS.slice(0, 5).forEach(d => p2.appendChild(chipRow(d.label, d.opts,
     () => sel[d.k] === undefined ? null : sel[d.k], v => { if (v === null) delete sel[d.k]; else sel[d.k] = v; })));
-  p2.appendChild(chipRow('潮の状況', TIDES, () => tide, v => tide = v));
   formEl.appendChild(p2);
 
   const p3 = document.createElement('div'); p3.className = 'panel';
@@ -48,7 +47,7 @@ function build(){
   formEl.appendChild(p4);
 }
 document.getElementById('reset').onclick = () => {
-  field = null; struct = null; cast = 0; tide = null;
+  field = null; struct = null; cast = 0;
   Object.keys(sel).forEach(k => delete sel[k]);
   build(); render();
 };
@@ -66,7 +65,6 @@ function score(L){
   DIMS.forEach(d => { if (sel[d.k] === undefined) return;
     const v = L[d.k][sel[d.k]]; total += v; n++; parts.push({label: d.opts[sel[d.k]], v}); });
   if (field !== null){ total += L.fl[field]; n++; }
-  if (tide !== null && sel.f === undefined){ total += L.f[tide === 2 ? 0 : (tide === 0 ? 1 : 2)]; n++; }
   const st = curStruct();
   if (st){ st.need.forEach(([k, i, w]) => { total += L[k][i] * w; n += w; }); }
   total += castScore(L);
@@ -81,7 +79,6 @@ function condLine(){
   if (field !== null) xs.push(FIELDS[field]);
   const st = curStruct(); if (st) xs.push(st.n);
   DIMS.forEach(d => { if (sel[d.k] !== undefined) xs.push(d.opts[sel[d.k]]); });
-  if (tide !== null) xs.push(TIDES[tide]);
   if (cast) xs.push(CAST[cast]);
   return xs.join(' × ');
 }
@@ -150,11 +147,10 @@ function howto(L){
     ['速度', sp.text + '（' + sp.why + '）。反応がなければ、速い・遅いの両方を試す'],
     ['アクション', ACT[L.ty]],
   ];
-  const tn = tide !== null ? [['潮', TIDE_NOTE[tide]]] : [];
   const blk = (title, rows) => '<div class="sub">' + title + '</div><ul class="flow">' +
     rows.map(r => '<li><span class="fk">' + r[0] + '</span><span>' + esc(r[1]) + '</span></li>').join('') + '</ul>';
   return '<div class="card"><div class="meta">' + esc(L.n) + '　' + esc(L.c) + '</div>' +
-    blk('どこへ、どう通すか【経験則】', g1.concat(tn)) + blk('どう流すか【経験則】', g2) + blk('速度・アクション【経験則】', g3) +
+    blk('どこへ、どう通すか【経験則】', g1) + blk('どう流すか【経験則】', g2) + blk('速度・アクション【経験則】', g3) +
     '<div class="meta" style="margin-top:8px">レンジはメーカーなどの仕様・表示を基準とした目安で、実釣時の実レンジを保証するものではありません。キャスト方向・コース・流し方・速度・アクションは、経験則に基づく選定の目安です。</div></div>';
 }
 function firstCard(x, needDeep){
@@ -177,7 +173,7 @@ function firstCard(x, needDeep){
 
 function render(){
   const resEl = document.getElementById('results'), howEl = document.getElementById('howto'), rotEl = document.getElementById('rotation');
-  if (field === null && tide === null && !Object.keys(sel).length){
+  if (field === null && !Object.keys(sel).length){
     resEl.innerHTML = '<div class="empty">フィールドか条件を1つ以上選んでください。</div>';
     howEl.innerHTML = ''; rotEl.innerHTML = '<li class="empty">条件を選ぶと表示されます。</li>'; return;
   }
@@ -228,25 +224,41 @@ render();
   }).join('') + '<div class="meta" style="margin-top:8px">合計 ' + LURES.length + ' 本。ここにあるルアーだけが、判定の候補です。</div></div>';
 })();
 
-// ===== 潮汐（新潟西港の推算潮位）。tide.js が無くても本体は動く =====
+// ===== 潮汐（参考表示のみ。ルアー選定の点数には使わない）。tide.js が無くても本体は動く =====
+function tideKey(d){ const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+function tideEvents(now){
+  // 前日・当日・翌日の満潮・干潮を、時刻順の1本の並びにする（日付またぎ対策）
+  const evs = [];
+  [-1, 0, 1].forEach(off => {
+    const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + off);
+    const day = TIDE_DATA.days[tideKey(d)]; if (!day) return;
+    [['hi', '満潮'], ['lo', '干潮']].forEach(([k, label]) => day[k].forEach(s => {
+      const [tm, cm] = s.split('/'); const [h, m] = tm.split(':').map(Number);
+      evs.push({t: d.getTime() + (h * 60 + m) * 60000, type: k, label, tm, cm: Number(cm)});
+    }));
+  });
+  return evs.sort((x, y) => x.t - y.t);
+}
 function tideInfo(now){
   if (typeof TIDE_DATA === 'undefined') return null;
-  const pad = n => String(n).padStart(2, '0');
-  const key = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-  const today = TIDE_DATA.days[key(now)];
+  const today = TIDE_DATA.days[tideKey(now)];
   if (!today) return {out: true};
   const tmr = new Date(now); tmr.setDate(tmr.getDate() + 1);
-  const next = TIDE_DATA.days[key(tmr)];
+  const next = TIDE_DATA.days[tideKey(tmr)];
   const hh = now.getHours(), mm = now.getMinutes();
-  const a = today.h[hh];
-  const b = hh < 23 ? today.h[hh + 1] : (next ? next.h[0] : a);
+  const a = today.h[hh], b = hh < 23 ? today.h[hh + 1] : (next ? next.h[0] : a);
   const level = Math.round(a + (b - a) * mm / 60);
-  const prev = hh > 0 ? today.h[hh - 1] : a;
-  const slope = (b - prev) / 2;               // cm/時（前後1時間の平均）
-  let state = 2;                               // 0上げ 1下げ 2止まり付近
-  if (slope >= 1.5) state = 0; else if (slope <= -1.5) state = 1;
+  // 満潮・干潮の時刻で判定：前後30分は潮止まり付近、干潮→満潮は上げ潮、満潮→干潮は下げ潮
+  const evs = tideEvents(now), t0 = now.getTime(), W = 30 * 60000;
+  let prevEv = null, nextEv = null;
+  evs.forEach(e => { if (e.t <= t0) prevEv = e; else if (!nextEv) nextEv = e; });
+  let state = null, near = null;
+  const close = [prevEv, nextEv].filter(e => e && Math.abs(e.t - t0) <= W);
+  if (close.length){ state = 2; near = close.sort((x, y) => Math.abs(x.t - t0) - Math.abs(y.t - t0))[0]; }
+  else if (prevEv) state = prevEv.type === 'lo' ? 0 : 1;
+  else if (nextEv) state = nextEv.type === 'hi' ? 0 : 1;
   const range = Math.max(...today.h) - Math.min(...today.h);
-  return {today, next, level, slope, state, range, hh, mm};
+  return {today, next, level, state, near, nextEv, range, hh, mm};
 }
 function tideSvg(h, hh, mm){
   const W = 300, H = 70, mn = Math.min(...h) - 2, mx = Math.max(...h) + 2;
@@ -263,17 +275,22 @@ function renderTide(){
   const el = document.getElementById('tidebox'); if (!el) return;
   const t = tideInfo(new Date());
   if (!t){ el.innerHTML = ''; return; }
+  const src = '<p class="meta" style="margin:6px 0 12px">出典：気象庁「潮位表」（新潟西港・新潟東港の推算潮位）／データ期間：' +
+    esc(TIDE_DATA.from) + '〜' + esc(TIDE_DATA.to) + '</p>';
   if (t.out){
-    el.innerHTML = '<div class="panel"><p class="ph">🌊 潮汐（' + esc(TIDE_DATA.short || TIDE_DATA.station) + '）</p><p class="meta" style="margin-bottom:12px">潮汐データの期間外です（' +
-      esc(TIDE_DATA.from) + '〜' + esc(TIDE_DATA.to) + '）。tide.js の更新が必要です。</p></div>';
+    el.innerHTML = '<div class="panel"><p class="ph">🌊 潮汐（参考）</p><p class="meta">データ期間外です。tide.js の更新が必要です。ルアー選定はそのまま使えます。</p>' + src + '</div>';
     return;
   }
   const fmt = arr => arr.length ? arr.map(s => { const [tm, cm] = s.split('/'); return tm + '（' + cm + 'cm）'; }).join('　') : 'なし';
   const STATE = ['上げ潮', '下げ潮', '潮止まり付近'];
-  el.innerHTML = '<div class="panel"><p class="ph">🌊 潮汐（' + esc(TIDE_DATA.short || TIDE_DATA.station) + '・予測値）</p>' +
-    '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline">' +
+  const stateTxt = t.state === null ? '—' : STATE[t.state];
+  const sub = t.state === 2 && t.near ? t.near.label + ' ' + t.near.tm + ' の前後30分'
+            : (t.nextEv ? '次は ' + t.nextEv.label + ' ' + t.nextEv.tm : '');
+  el.innerHTML = '<div class="panel"><p class="ph">🌊 潮汐（参考）</p>' +
+    '<div class="meta" style="margin-top:-6px">阿賀野川河口付近：近隣2地点（新潟西港・東港）から算出した参考値</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;margin-top:6px">' +
       '<div><span class="meta">今の潮位</span> <b style="font-size:20px">' + t.level + 'cm</b></div>' +
-      '<div><span class="meta">潮の動き</span> <b style="font-size:18px;color:var(--accent)">' + STATE[t.state] + '</b></div>' +
+      '<div><span class="meta">潮の動き</span> <b style="font-size:18px;color:var(--accent)">' + stateTxt + '</b> <span class="meta">' + esc(sub) + '</span></div>' +
       '<div class="meta">今日の潮位差 ' + t.range + 'cm</div>' +
     '</div>' +
     tideSvg(t.today.h, t.hh, t.mm) +
@@ -281,9 +298,8 @@ function renderTide(){
     '<div><span class="k">干潮</span><span>' + fmt(t.today.lo) + '</span></div>' +
     (t.next ? '<div><span class="k">明日の満潮</span><span>' + fmt(t.next.hi) + '</span></div><div><span class="k">明日の干潮</span><span>' + fmt(t.next.lo) + '</span></div>' : '') +
     '</div>' +
-    '<button class="reset" id="useTide" type="button" style="margin-top:8px">この潮（' + STATE[t.state].replace('付近','') + '）を条件に使う</button>' +
-    '<p class="meta" style="margin:4px 0 12px">気象庁の新潟西港・新潟東港の予測値を平均した目安で、実測ではありません。新潟は潮位差が数十cmと小さく、河口の流れは川の流量・雨・放流の影響の方が大きいことが多いです。</p></div>';
-  document.getElementById('useTide').onclick = () => { tide = t.state; build(); render(); };
+    '<p class="meta" style="margin:8px 0 0">潮はルアー選定の点数には使っていません。新潟は潮位差が数十cmと小さく、河口の流れは川の流量・雨・放流の影響が大きいので、流れは現場で見て選んでください。潮止まりの判定（満潮・干潮の前後30分）も目安で、流れが止まることを保証するものではありません。</p>' +
+    src + '</div>';
 }
 renderTide();
 setInterval(renderTide, 10 * 60 * 1000);

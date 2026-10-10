@@ -1,4 +1,4 @@
-const CACHE = 'lure-selector-v11';
+const CACHE = 'lure-selector-v12';
 const ASSETS = ['./', './index.html', './tide.js', './data.js', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', e => {
