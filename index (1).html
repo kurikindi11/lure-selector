@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#14262e">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>新潟シーバス LURE SELECTOR</title>
+<style>
+:root{
+  --bg:#e9eeee; --panel:#f6f8f7; --ink:#14262e; --sub:#5a6e75; --line:#c4d0d1;
+  --accent:#e4572e; --accent-ink:#fff; --good:#1f7a6b; --warn:#b5651d; --chip:#dde6e6;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1a1f; --panel:#16252c; --ink:#e6eeee; --sub:#92a8ae; --line:#2b4049;
+  --accent:#ff7a50; --accent-ink:#1a0d07; --good:#4fc3ad; --warn:#e8a15a; --chip:#1f333b;}}
+:root[data-theme="dark"]{--bg:#0f1a1f; --panel:#16252c; --ink:#e6eeee; --sub:#92a8ae; --line:#2b4049;
+  --accent:#ff7a50; --accent-ink:#1a0d07; --good:#4fc3ad; --warn:#e8a15a; --chip:#1f333b;}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;line-height:1.55}
+main{max-width:760px;margin:0 auto;padding:20px 16px 56px}
+h1{font-size:25px;font-weight:900;margin:6px 0 2px}
+.lead{color:var(--sub);font-size:14px;margin:0 0 18px}
+h2{font-size:17px;font-weight:900;margin:28px 0 10px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 14px 2px;margin-bottom:12px}
+.ph{font-size:12px;font-weight:700;color:var(--accent);margin:0 0 10px}
+.row{margin-bottom:13px}
+.row-h{font-size:13px;font-weight:700;color:var(--sub);margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:15px;border:1px solid var(--line);background:var(--chip);color:var(--ink);padding:7px 13px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.chip:focus-visible,.reset:focus-visible{outline:3px solid var(--good);outline-offset:2px}
+.reset{font:inherit;font-size:13px;background:none;border:1px solid var(--line);color:var(--sub);padding:6px 14px;border-radius:6px;cursor:pointer;margin-bottom:6px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px}
+.card.first{border:2px solid var(--accent)}
+.card-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.name{font-size:20px;font-weight:900}
+.meta{font-size:12px;color:var(--sub)}
+.stars{color:var(--accent);font-size:15px;letter-spacing:1px;white-space:nowrap}
+.reason{margin-top:10px;padding:10px 12px;background:var(--chip);border-radius:8px}
+.reason b{display:block;font-size:12px;color:var(--sub);margin-bottom:6px}
+.step{font-size:15px;line-height:1.45}
+.step.s1{font-weight:700}
+.step.s3{font-weight:900;color:var(--accent)}
+.arrow{font-size:12px;color:var(--sub);margin:2px 0}
+.sub{margin-top:11px;font-size:12px;color:var(--sub);font-weight:700}
+.kv{margin-top:5px;font-size:13px}
+.kv div{display:flex;gap:8px;margin:3px 0}
+.kv span.k{min-width:6.2em;color:var(--sub);flex:none}
+.kv .bad{color:var(--warn)}
+.flow{list-style:none;margin:6px 0 0;padding:0}
+.flow li{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px dashed var(--line)}
+.flow li:last-child{border:0}
+.flow .fk{min-width:5.6em;flex:none;font-size:12px;font-weight:700;color:var(--accent)}
+.col{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);font-size:13px}
+.col .ownc{font-size:14px;font-weight:700}
+.fam{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.famtag{font-size:12px;background:var(--chip);padding:2px 8px;border-radius:4px}
+ol.rot{list-style:none;margin:0;padding:0}
+ol.rot li{padding:10px 0;border-bottom:1px solid var(--line)}
+ol.rot li:last-child{border:0}
+.chg{font-size:14px;font-weight:900;color:var(--accent)}
+.nextlure{font-size:15px;margin-top:3px}
+.empty{color:var(--sub);padding:12px 0}
+.note{font-size:12px;color:var(--sub);margin-top:26px}
+</style>
+</head>
+<body>
+<main>
+  <h1>新潟シーバス LURE SELECTOR</h1>
+  <p class="lead">フィールドと地形、状況、目的を選ぶと、今投げる1本・その理由・投げる方向と流し方・反応がない時に何を変えるかまで出ます。選ばない項目は無視されます。</p>
+
+  <div id="tidebox"></div>
+  <div id="form"></div>
+  <button class="reset" id="reset">条件をクリア</button>
+
+  <h2>🎯 今投げる1本</h2>
+  <div id="results"></div>
+  <div id="logbox"></div>
+
+  <h2>🎣 HOW TO FISH</h2>
+  <div id="howto"></div>
+
+  <h2>🔄 反応がなかったら</h2>
+  <div class="card"><ol class="rot" id="rotation"></ol></div>
+
+  <h2>📦 BOX一覧</h2>
+  <div id="boxlist"></div>
+
+  <p class="note">内部の適性点は data.js の LURES / STRUCT / COLOR_FAM 配列で編集できます（-3〜+3）。ルアーやポイントを足す時も data.js だけを直します。初期値は仕様と一般的な使い方からの目安で、釣果で裏付けたものではありません。</p>
+</main>
+
+<script src="tide.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
