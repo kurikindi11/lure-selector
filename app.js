@@ -153,7 +153,7 @@ function howto(L){
     blk('どこへ、どう通すか【経験則】', g1) + blk('どう流すか【経験則】', g2) + blk('速度・アクション【経験則】', g3) +
     '<div class="meta" style="margin-top:8px">レンジはメーカーなどの仕様・表示を基準とした目安で、実釣時の実レンジを保証するものではありません。キャスト方向・コース・流し方・速度・アクションは、経験則に基づく選定の目安です。</div></div>';
 }
-function firstCard(x){
+function firstCard(x, needDeep){
   const L = x.L;
   const v = [L.a[0], L.a[1] + '（' + WAVE[L.wv] + '）', L.a[2], L.a[3]];
   return '<div class="card first">' +
@@ -162,7 +162,8 @@ function firstCard(x){
     '<div class="reason"><b>選定理由</b>' +
       '<div class="step s1">' + esc(condLine()) + '</div><div class="arrow">↓</div>' +
       '<div class="step">' + esc(needLine(L)) + '</div><div class="arrow">↓</div>' +
-      '<div class="step s3">' + esc(L.n) + ' を選定</div></div>' +
+      '<div class="step s3">' + esc(L.n) + ' を選定</div>' +
+      '<div class="meta" style="margin-top:6px">' + (needDeep ? 'レンジを下げる条件（目的または深場）があるため、全体から選んでいます。' : '基本は表層〜シャローのミノー系から入ります。反応がなければ、下の「反応がなかったら」でレンジを下げます。') + '</div></div>' +
     '<div class="sub">この1本を選んだ理由</div>' +
     '<div class="kv">' + ATTR_LABEL.map((k, i) => '<div><span class="k">' + k + '</span><span>' + esc(v[i]) + '</span></div>').join('') + '</div>' +
     '<div class="kv"><div><span class="k">得意</span><span>' + esc(L.good) + '</span></div>' +
@@ -176,15 +177,18 @@ function render(){
     howEl.innerHTML = ''; rotEl.innerHTML = '<li class="empty">条件を選ぶと表示されます。</li>'; return;
   }
   const ranked = LURES.map(L => ({L, s: score(L)})).sort((a, b) => b.s.total - a.s.total || a.L.main - b.L.main);
-  const first = ranked[0];
-  resEl.innerHTML = firstCard(first);
+  // 基本はミノー系（表層〜シャロー）から入る。レンジを下げる必要がある時だけ、全体から選ぶ
+  const needDeep = sel.g === 3 || sel.dp === 2;
+  const pool = needDeep ? ranked : ranked.filter(y => y.L.main <= 1);
+  const first = pool[0] || ranked[0];
+  resEl.innerHTML = firstCard(first, needDeep);
   howEl.innerHTML = howto(first.L);
 
   const used = new Set([first.L.n]);
   const take = fn => { const x = ranked.find(y => !used.has(y.L.n) && fn(y)); if (x) used.add(x.L.n); return x; };
   const F = first.L, deeper = F.main <= 1, bigger = F.sz <= 1;
   const steps = [];
-  const r1 = take(y => deeper ? y.L.main >= F.main + 2 : y.L.main <= F.main - 1);
+  const r1 = take(y => deeper ? y.L.main >= Math.max(2, F.main + 1) : y.L.main <= F.main - 1);
   if (r1) steps.push({c: deeper ? 'レンジを下げる' : 'レンジを上げる',
     d: '同じコースを10〜15分通して反応がない時。魚が浮いていない可能性がある', why: r1.L.a[0] + 'を通せる', x: r1});
   const r2 = take(y => bigger ? y.L.sz > F.sz : y.L.sz < F.sz);
